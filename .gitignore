@@ -71,3 +71,6 @@ Thumbs.db
 desktop.ini
 
 # Logs
+
+# more files
+.prompts/

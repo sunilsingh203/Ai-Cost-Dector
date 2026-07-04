@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 from typing import Any
@@ -20,18 +21,37 @@ class ResourceGroupNotFoundError(AzureCLIError):
     pass
 
 
-def _ensure_az_available() -> None:
-    if shutil.which("az") is None:
-        raise AzureCLINotInstalledError(
-            "Azure CLI is not installed or not on PATH. Install it from https://aka.ms/installazurecli"
-        )
+def _ensure_az_available() -> str:
+    az_candidates = []
+    if os.environ.get("AZURE_CLI_PATH"):
+        az_candidates.append(os.environ["AZURE_CLI_PATH"])
+    az_candidates.extend(["az", "az.cmd", "az.exe"])
+
+    for candidate in az_candidates:
+        if os.path.isabs(candidate) and os.path.exists(candidate):
+            return candidate
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+
+    fallback_paths = [
+        r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+        r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az",
+    ]
+    for path in fallback_paths:
+        if os.path.exists(path):
+            return path
+
+    raise AzureCLINotInstalledError(
+        "Azure CLI is not installed or not on PATH. Install it from https://aka.ms/installazurecli"
+    )
 
 
 def _run_az(args: list[str], *, context: str | None = None) -> Any:
-    _ensure_az_available()
+    az_path = _ensure_az_available()
     try:
         result = subprocess.run(
-            ["az", *args],
+            [az_path, *args],
             capture_output=True,
             text=True,
             check=False,

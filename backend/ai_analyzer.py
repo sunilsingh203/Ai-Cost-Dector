@@ -28,20 +28,13 @@ class AnalysisResult(BaseModel):
 
 
 def _build_prompt(resource_group: str, resources: list[dict[str, Any]]) -> str:
-    resources_json = json.dumps(resources, indent=2)
-    return f"""You are an Azure cloud cost optimization expert. Analyze the following Azure resources
-from resource group "{resource_group}" and identify cost waste and optimization opportunities.
-
-Look for:
-- Over-provisioned resources (SKU/tier too large for likely workload)
-- Unused or idle resources (empty disks, stopped VMs, unused IPs, etc.)
-- Misconfigurations that increase cost
-- Wrong pricing tiers (Premium where Standard suffices, etc.)
-- General cost optimization opportunities
+    resources_json = json.dumps(resources, separators=(",", ":"))
+    return f"""You are an Azure cloud cost optimization expert. Analyze these Azure resources
+from resource group \"{resource_group}\".
 
 Return JSON with this exact structure:
 {{
-  "summary": "Brief overall assessment of the resource group cost health",
+  "summary": "Brief overall assessment of cost health",
   "issues": [
     {{
       "resource_name": "name of the Azure resource",
@@ -49,17 +42,16 @@ Return JSON with this exact structure:
       "issue_type": "over-provisioned | unused | misconfigured | wrong-tier | other",
       "severity": "high | medium | low",
       "explanation": "Why this is a cost concern",
-      "fix_command": "Azure CLI command to fix or az command to investigate further, or null if not applicable"
+      "fix_command": "Azure CLI command or null"
     }}
   ],
-  "estimated_savings": "Rough monthly savings estimate as text, e.g. '$50-100/month' or 'Minimal savings expected'"
+  "estimated_savings": "Rough monthly savings estimate, e.g. '$50-100/month' or 'Minimal savings expected'"
 }}
 
-If no issues are found, return an empty issues array with an appropriate summary.
-Be specific to the resources provided. Do not invent resources not in the list.
+If there are no issues, return an empty issues array and a summary.
+Do not invent resources not in the list.
 
-Resources:
-{resources_json}"""
+Resources: {resources_json}"""
 
 
 def analyze_resources(
@@ -79,7 +71,6 @@ def analyze_resources(
         response = model.generate_content(
             _build_prompt(resource_group, resources),
             generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
                 temperature=0.2,
             ),
         )
